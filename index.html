@@ -94,18 +94,62 @@
             overflow: hidden;
             position: relative;
             border: 1px solid #3a3a4e;
+            isolation: isolate;
+        }
+
+        .progress-bar-markers {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .progress-marker {
+            position: absolute;
+            top: 4px;
+            bottom: 4px;
+            width: 2px;
+            background: rgba(255, 255, 255, 0.18);
+            transform: translateX(-50%);
+            border-radius: 999px;
         }
 
         .progress-bar {
+            position: relative;
             height: 100%;
+            width: 100%;
+        }
+
+        .progress-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 0%;
             background: linear-gradient(90deg, #e94560 0%, #f27121 100%);
-            transition: width 0.5s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
+            transition: width 0.6s ease;
             box-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+            z-index: 2;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            text-align: center;
+            color: #ffffff;
+            font-weight: bold;
+            z-index: 3;
+            pointer-events: none;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+        }
+
+        .progress-text.on-light-fill {
+            color: #1a1a2e;
+            text-shadow: none;
         }
 
         .badges-section {
@@ -293,7 +337,20 @@
 		  width: 80%;
 		  height: auto;
 		}
-    </style>
+    
+@media (max-width:600px){
+  .stats-grid{
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap:15px;
+  }
+  .stat-item{
+    width:100%;
+    max-width:260px;
+  }
+}
+
+</style>
 </head>
 <body>
     <div class="overlay" id="overlay"></div>
@@ -324,14 +381,22 @@
             <div class="progress-section">
                 <h3>Next Victory Milestone (5 wins)</h3>
                 <div class="progress-bar-container">
-                    <div class="progress-bar" id="victoryProgress">0/5</div>
+                    <div class="progress-bar-markers" id="victoryMarkers"></div>
+                    <div class="progress-bar" id="victoryProgress">
+                        <div class="progress-fill"></div>
+                        <div class="progress-text">0/0</div>
+                    </div>
                 </div>
             </div>
 
             <div class="progress-section">
                 <h3>Next Money Milestone</h3>
                 <div class="progress-bar-container">
-                    <div class="progress-bar" id="moneyProgress">€0</div>
+                    <div class="progress-bar-markers" id="moneyMarkers"></div>
+                    <div class="progress-bar" id="moneyProgress">
+                        <div class="progress-fill"></div>
+                        <div class="progress-text">€0/€0</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -359,16 +424,50 @@
         const TOTAL_MONEY_SAVED = 5334.15;   // Money saved in euros
         // ====================================
 
-        const badges = [
-            { id: 'first', icon: '🎯', title: 'First Victory', desc: 'Win your first case', requirement: { type: 'victories', value: 1 }, unlocked: false },
-            { id: 'five', icon: '⭐', title: 'Legal Star', desc: '5 victories', requirement: { type: 'victories', value: 5 }, unlocked: false },
-            { id: 'ten', icon: '🌟', title: 'Legal Master', desc: '10 victories', requirement: { type: 'victories', value: 10 }, unlocked: false },
-            { id: 'money500', icon: '💰', title: 'Money Saver', desc: 'Save €500', requirement: { type: 'money', value: 500 }, unlocked: false },
-            { id: 'money1000', icon: '💎', title: 'Diamond Defender', desc: 'Save €1000', requirement: { type: 'money', value: 1000 }, unlocked: false },
-            { id: 'money2500', icon: '👑', title: 'Legal Legend', desc: 'Save €2500', requirement: { type: 'money', value: 2500 }, unlocked: false },
-            { id: 'money5000', icon: '👑', title: 'Legal Legend', desc: 'Save €5000', requirement: { type: 'money', value: 5000 }, unlocked: false },
-            { id: 'money7500', icon: '👑', title: 'Legal Legend', desc: 'Save €7500', requirement: { type: 'money', value: 7500 }, unlocked: false }
-        ];
+        
+        // ====================================
+        // BADGE CONFIG (only edit numbers here)
+        // ====================================
+
+        const badgeValues = {
+            victories: [1, 5, 10],
+            money: [500, 1000, 2500, 5000, 7500]
+        };
+
+        const badgeMeta = {
+            victories: {
+                icons: ['🎯','⭐','🌟','🏆','👑'],
+                titlePrefix: 'Victory',
+                desc: (v)=> `${v} victories`
+            },
+            money: {
+                icons: ['💰','💎','👑','🏆','🚀'],
+                titlePrefix: 'Money Saver',
+                desc: (v)=> `Save €${v}`
+            }
+        };
+
+        function generateBadges(){
+            const badges = [];
+
+            Object.keys(badgeValues).forEach(type=>{
+                badgeValues[type].forEach((value,i)=>{
+                    badges.push({
+                        id: `${type}_${value}`,
+                        icon: badgeMeta[type].icons[i] || badgeMeta[type].icons[badgeMeta[type].icons.length-1],
+                        title: `${badgeMeta[type].titlePrefix} ${value}`,
+                        desc: badgeMeta[type].desc(value),
+                        requirement: { type: type, value: value },
+                        unlocked: false
+                    });
+                });
+            });
+
+            return badges;
+        }
+
+        const badges = generateBadges();
+
 
         let gameState = {
             victories: TOTAL_VICTORIES,
@@ -397,30 +496,88 @@
             updateDisplay();
         }
 
+        function getMilestonesByType(type) {
+            return [...new Set(
+                gameState.badges
+                    .filter(badge => badge.requirement.type === type)
+                    .map(badge => badge.requirement.value)
+            )].sort((a, b) => a - b);
+        }
+
+        function getProgressMilestones(currentValue, type) {
+            const milestones = getMilestonesByType(type);
+            const nextMilestone = milestones.find(value => currentValue < value) ?? milestones[milestones.length - 1] ?? 0;
+            const nextMilestoneIndex = milestones.indexOf(nextMilestone);
+            const previousMilestone = nextMilestoneIndex > 0 ? milestones[nextMilestoneIndex - 1] : 0;
+
+            return {
+                previousMilestone,
+                nextMilestone,
+                milestones
+            };
+        }
+
+        function updateProgressBar(barId, markersId, progressPercent, label, milestones, previousMilestone, nextMilestone) {
+            const bar = document.getElementById(barId);
+            const fill = bar.querySelector('.progress-fill');
+            const text = bar.querySelector('.progress-text');
+            const markers = document.getElementById(markersId);
+
+            fill.style.width = `${Math.max(0, Math.min(progressPercent, 100))}%`;
+            text.textContent = label;
+            text.classList.toggle('on-light-fill', progressPercent > 70);
+
+            markers.innerHTML = '';
+            const range = Math.max(nextMilestone - previousMilestone, 1);
+            milestones
+                .filter(value => value > previousMilestone && value < nextMilestone)
+                .forEach(value => {
+                    const marker = document.createElement('div');
+                    marker.className = 'progress-marker';
+                    marker.style.left = `${((value - previousMilestone) / range) * 100}%`;
+                    markers.appendChild(marker);
+                });
+        }
+
         function updateDisplay() {
             document.getElementById('totalVictories').textContent = gameState.victories;
             document.getElementById('totalSaved').textContent = gameState.moneySaved.toFixed(0);
             document.getElementById('beerVouchers').textContent = gameState.beerVouchers;
 
-            const victoryProgress = Math.min((gameState.victories % 5) / 5 * 100, 100);
-            const victoryBar = document.getElementById('victoryProgress');
-            victoryBar.style.width = victoryProgress + '%';
-            victoryBar.textContent = `${gameState.victories % 5}/5`;
+            const victoryData = getProgressMilestones(gameState.victories, 'victories');
+            const victoryMilestoneRange = Math.max(victoryData.nextMilestone - victoryData.previousMilestone, 1);
+            const victoryProgress = Math.min(((gameState.victories - victoryData.previousMilestone) / victoryMilestoneRange) * 100, 100);
+            updateProgressBar(
+                'victoryProgress',
+                'victoryMarkers',
+                victoryProgress,
+                `${gameState.victories}/${victoryData.nextMilestone}`,
+                victoryData.milestones,
+                victoryData.previousMilestone,
+                victoryData.nextMilestone
+            );
 
-            const nextMoneyMilestone = gameState.moneySaved < 500 ? 500 : 
-                                       gameState.moneySaved < 1000 ? 1000 : 
-                                       gameState.moneySaved < 2500 ? 2500 : 5000;
-            const previousMilestone = nextMoneyMilestone === 500 ? 0 :
-                                     nextMoneyMilestone === 1000 ? 500 :
-                                     nextMoneyMilestone === 2500 ? 1000 : 2500;
-            const moneyProgress = Math.min(((gameState.moneySaved - previousMilestone) / (nextMoneyMilestone - previousMilestone)) * 100, 100);
-            const moneyBar = document.getElementById('moneyProgress');
-            moneyBar.style.width = moneyProgress + '%';
-            moneyBar.textContent = `€${gameState.moneySaved.toFixed(0)}/€${nextMoneyMilestone}`;
+            const victorySection = document.querySelectorAll('.progress-section')[0];
+            if (victorySection) {
+                victorySection.querySelector('h3').textContent = `Next Victory Milestone (${victoryData.nextMilestone} wins)`;
+            }
+
+            const moneyData = getProgressMilestones(gameState.moneySaved, 'money');
+            const moneyMilestoneRange = Math.max(moneyData.nextMilestone - moneyData.previousMilestone, 1);
+            const moneyProgress = Math.min(((gameState.moneySaved - moneyData.previousMilestone) / moneyMilestoneRange) * 100, 100);
+            updateProgressBar(
+                'moneyProgress',
+                'moneyMarkers',
+                moneyProgress,
+                `€${gameState.moneySaved.toFixed(0)}/€${moneyData.nextMilestone}`,
+                moneyData.milestones,
+                moneyData.previousMilestone,
+                moneyData.nextMilestone
+            );
             
             const moneySection = document.querySelectorAll('.progress-section')[1];
             if (moneySection) {
-                moneySection.querySelector('h3').textContent = `Next Money Milestone (€${nextMoneyMilestone})`;
+                moneySection.querySelector('h3').textContent = `Next Money Milestone (€${moneyData.nextMilestone})`;
             }
         }
 
